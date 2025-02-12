@@ -2,21 +2,17 @@ import { Resource } from "@opentelemetry/resources";
 import { SimpleSpanProcessor,WebTracerProvider,BatchSpanProcessor, } from "@opentelemetry/sdk-trace-web";
 import { metrics, trace } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-// import { FetchInstrumentation } from "@opentelemetry/instrumentation-fetch";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { getWebAutoInstrumentations } from '@opentelemetry/auto-instrumentations-web';
-// import { DocumentLoadInstrumentation } from "@opentelemetry/instrumentation-document-load";
-// import { XMLHttpRequestInstrumentation } from '@opentelemetry/instrumentation-xml-http-request';
-// import { UserInteractionInstrumentation } from '@opentelemetry/instrumentation-user-interaction';
 import { ZoneContextManager } from '@opentelemetry/context-zone';
-import { MeterProvider,PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
+import { MeterProvider,PeriodicExportingMetricReader,ConsoleMetricExporter } from "@opentelemetry/sdk-metrics";
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from '@opentelemetry/semantic-conventions';
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { useEffect } from 'react';
 
 const useOtel = () => {
 const resource = new Resource({
-      [ATTR_SERVICE_NAME]: 'react-test',
+      [ATTR_SERVICE_NAME]: 'react-apigee',
       [ATTR_SERVICE_VERSION]: '1.0.0',
 });
 
@@ -31,6 +27,7 @@ tracerProvider.addSpanProcessor(spanProcessor);
 tracerProvider.addSpanProcessor(
     new BatchSpanProcessor(traceExporter),
 );
+// tracerProvider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
 
 tracerProvider.register({
     contextManager: new ZoneContextManager(),
@@ -40,67 +37,52 @@ trace.setGlobalTracerProvider(tracerProvider);
 
 useEffect(() => {
 
-    const resource = new Resource({
-          [ATTR_SERVICE_NAME]: 'react-cawa',
+const resource = new Resource({
+          [ATTR_SERVICE_NAME]: 'react-apigee',
           [ATTR_SERVICE_VERSION]: '1.0.0',
     });
       // Create OTLP Metric Exporter
-      const exporter = new OTLPMetricExporter();
-  
+const exporter = new OTLPMetricExporter();
+const consoleExporter = new ConsoleMetricExporter() ;
       // Set up a periodic metric reader
-      const metricReader = new PeriodicExportingMetricReader({
+const metricReader = new PeriodicExportingMetricReader({
         exporter,
+        consoleExporter,
         exportIntervalMillis: 10000, // Export metrics every 10 seconds
       });
   
       // Initialize MeterProvider
-      const meterProvider = new MeterProvider({
+const meterProvider = new MeterProvider({
         resource: resource,
         readers: [metricReader],
     });
     
-    metrics.setGlobalMeterProvider(meterProvider);
+metrics.setGlobalMeterProvider(meterProvider);
     
       // Create a meter
-      const meter = meterProvider.getMeter('browser-metrics');
-      
-    //   const pageLoadCounter = meter.createCounter('page_loads', {description: 'Counts the number of page loads',});
-    //   pageLoadCounter.add(1);
-    // //   const pageViews = localStorage.getItem("page_views") || 0;
-    // //   localStorage.setItem("page_views", Number(pageViews) + 1);
+const meter = meterProvider.getMeter('browser-metrics');
 
-    // const pageViewCounter = meter.createCounter('page_views_total', {
-    //     description: 'Total number of page views',
-    //         });
-         
-    //         // **Increment Counter**
-        
-    //         pageViewCounter.add(1, { path: window.location.pathname });
-         
-    //         console.log(`Page View Recorded`);
-
-            console.log("Tracking Page Views...");
 
             // Retrieve current page views count from localStorage
-            let pageViews = parseInt(localStorage.getItem("page_views") || "0", 10);
+    let pageViews = parseInt(localStorage.getItem("page_views") || "0", 10);
         
             // Increment and update localStorage
-            pageViews += 1;
-            localStorage.setItem("page_views", pageViews);
+    pageViews += 1;
+    localStorage.setItem("page_views", pageViews);
             
-            console.log(`Updated Total Page Views: ${pageViews}`);
+    console.log(`Updated Total Page Views: ${pageViews}`);
         
             // **Create Counter Metric**
-            const pageViewCounter = meter.createCounter('page_views_total', {
-              description: 'Total number of page views',
-            });
+    const pageViewCounter = meter.createCounter('page_views_total', {
+        description: 'Total number of page views',
+    });
         
             // **Record the total page views**
-            pageViewCounter.add(pageViews, { path: window.location.pathname });
+    pageViewCounter.add(pageViews, { path: window.location.pathname });
         
 
     //   console.log(`Total no of page loads: ${pageViews}`);
-
+        
 
       // Create a histogram to measure page load duration
       const pageLoadDuration = meter.createHistogram('page_load_duration', {
@@ -128,10 +110,30 @@ useEffect(() => {
 registerInstrumentations({
     instrumentations: [
         getWebAutoInstrumentations({
-            '@opentelemetry/instrumentation-document-load': {},
-            '@opentelemetry/instrumentation-user-interaction': {},
-            '@opentelemetry/instrumentation-fetch': {},
-            '@opentelemetry/instrumentation-xml-http-request': {},
+            '@opentelemetry/instrumentation-document-load': {
+                enabled: true,
+            },
+            '@opentelemetry/instrumentation-user-interaction': {
+                enabled: true,
+                eventNames: [
+                    "click",
+                    "load",
+                    "loadeddata",
+                    "loadedmetadata",
+                    "loadstart",
+                    "error",
+                ],
+            },
+            '@opentelemetry/instrumentation-fetch': {
+                propagateTraceHeaderCorsUrls: /.*/,
+                clearTimingResources: false,
+            },
+            '@opentelemetry/instrumentation-xml-http-request': {
+                enabled: true,
+                ignoreUrls: ["/localhost:8081/sockjs-node"],
+                clearTimingResources: true,
+                propagateTraceHeaderCorsUrls: [/.+/g]
+            },
         }),
     ],
 });
