@@ -1,0 +1,44 @@
+receivers:
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: "otelcol"
+          scrape_interval: 10s
+          static_configs:
+            - targets: ["0.0.0.0:8888"]
+# OTLP receiver configuration for accepting traces, metrics and logs via gRPC and HTTP 
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - http://*
+            - https://*
+
+processors:
+  batch:
+
+exporters:
+  prometheusremotewrite/local:
+    add_metric_suffixes: false
+    compression: gzip
+    endpoint: http://prometheus:9090/api/v1/write
+
+  otlphttp/jaeger:
+    endpoint: http://jaeger:4318
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheusremotewrite/local]
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/jaeger]
