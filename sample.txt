@@ -1,0 +1,133 @@
+/* document-load.ts|js file - the code is the same for both the languages */
+// import {
+//   ConsoleSpanExporter,
+//   SimpleSpanProcessor,
+// } from '@opentelemetry/sdk-trace-base';
+// import { WebTracerProvider } from '@opentelemetry/sdk-trace-web';
+// // import { DocumentLoadInstrumentation } from '@opentelemetry/instrumentation-document-load';
+// import { ZoneContextManager } from '@opentelemetry/context-zone';
+// import { registerInstrumentations } from '@opentelemetry/instrumentation';
+// // import { XMLHttpRequestInstrumentation } from '@opentelemetry/instrumentation-xml-http-request';
+// // import { UserInteractionInstrumentation } from '@opentelemetry/instrumentation-user-interaction';
+// import { MeterProvider, PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
+// import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
+// import { Resource } from '@opentelemetry/resources';
+// import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from '@opentelemetry/semantic-conventions';
+// import { getWebAutoInstrumentations } from '@opentelemetry/auto-instrumentations-web';
+
+// const resource = new Resource({
+//     [ATTR_SERVICE_NAME]: 'Testingwebapp',
+//     [ATTR_SERVICE_VERSION]: '0.1.0',
+// });
+
+// const provider = new WebTracerProvider({
+//   spanProcessors: [new SimpleSpanProcessor(new ConsoleSpanExporter())],
+// });
+
+// provider.register({
+//   // Changing default contextManager to use ZoneContextManager - supports asynchronous operations - optional
+//   contextManager: new ZoneContextManager(),
+// });
+
+// // Registering instrumentations
+// registerInstrumentations({
+//   instrumentations: [
+//     getWebAutoInstrumentations({
+//     '@opentelemetry/instrumentation-document-load':{},
+//     '@opentelemetry/instrumentation-user-interaction':{},
+//     '@opentelemetry/instrumentation-xml-http-request': {
+//         clearTimingResources: true,
+//       },
+// })
+//   ],
+// });
+ 
+
+// const exporter = new OTLPMetricExporter({
+// url: 'http://localhost:4318/v1/metrics', // Adjust the URL to your OTLP metrics endpoint
+// });
+
+// const metricReader = new PeriodicExportingMetricReader({
+//   exporter: exporter,
+//   exportIntervalMillis: 10000, // Adjust export interval
+// });
+
+// const meterProvider = new MeterProvider({
+//   resource: resource,
+//   readers: [metricReader],
+// });
+
+// // Initialize meter provider (this is where you collect custom metrics)
+// const meter = meterProvider.getMeter('browser-metrics');
+
+// // Example of creating a simple counter metric
+// const pageLoadCounter = meter.createCounter('page_loads', {description: 'Counts the number of page loads',});
+
+// // Optional: Example of adding metrics, like duration or custom timing
+// const pageLoadDuration = meter.createHistogram('page_load_duration', {description: 'Measures the time it takes to load the page',});
+
+// // Simulate recording a metric (since we can't use `window` in Node.js)
+// const simulateLoadTime = () => {
+//   const loadTime = Math.random() * 1000; // Simulate a random page load time between 0 and 1000ms
+//   pageLoadDuration.record(loadTime);
+//   pageLoadCounter.add(1);
+//   console.log(`Simulated page load in ${loadTime.toFixed(2)} milliseconds`);
+//   console.log(`Metric Recorded: page_load_duration = ${loadTime.toFixed(2)} ms`);
+// };
+
+// // Simulate a load event every 10 seconds
+// setInterval(simulateLoadTime, 10000);
+
+
+getWebAutoInstrumentations:
+
+import { registerInstrumentations } from '@opentelemetry/instrumentation';
+import { getWebAutoInstrumentations } from '@opentelemetry/auto-instrumentations-web';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { ZoneContextManager } from '@opentelemetry/context-zone';
+import { Resource } from '@opentelemetry/resources';
+import { SEMRESATTRS_SERVICE_NAME, SEMRESATTRS_SERVICE_NAMESPACE} from '@opentelemetry/semantic-conventions'
+
+import {
+    WebTracerProvider,
+    ConsoleSpanExporter,
+    SimpleSpanProcessor,
+    BatchSpanProcessor,
+} from '@opentelemetry/sdk-trace-web';
+
+const provider = new WebTracerProvider({
+    resource: new Resource({
+        [SEMRESATTRS_SERVICE_NAME]: "angular-web",
+        [SEMRESATTRS_SERVICE_NAMESPACE]: "website"
+    }),
+});
+
+// For demo purposes only, immediately log traces to the console
+provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
+ 
+// Batch traces before sending them to HoneyComb
+provider.addSpanProcessor(
+    new BatchSpanProcessor(
+        new OTLPTraceExporter({
+            url: 'http://localhost/v1/traces',
+            headers: {
+                'x-custom-header-key': 'CUSTOM_HEADER_VALUE',
+            },
+        }),
+    ),
+);
+ 
+provider.register({
+    contextManager: new ZoneContextManager(),
+});
+
+registerInstrumentations({
+    instrumentations: [
+        getWebAutoInstrumentations({
+            '@opentelemetry/instrumentation-document-load': {},
+            '@opentelemetry/instrumentation-user-interaction': {},
+            '@opentelemetry/instrumentation-fetch': {},
+            '@opentelemetry/instrumentation-xml-http-request': {},
+        }),
+    ],
+});
